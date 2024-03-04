@@ -71,14 +71,14 @@ def select_time_length(driver):
     driver.implicitly_wait(5)
 
 
-def select_day(driver):
+def select_day(driver, day: int):
     driver.implicitly_wait(5)
     button_row = driver.find_element(
         By.CSS_SELECTOR, "div.row.w-100.h-100.no-gutters.text-center.ng-star-inserted"
     )
     day = button_row.find_elements(
         By.CSS_SELECTOR, "div.col.clickable.slider-item.align-middle.ng-star-inserted"
-    )[1]
+    )[day]
     driver.implicitly_wait(5)
     day.click()
 
@@ -93,26 +93,35 @@ def select_hour_view(driver):
     hour_view.click()
 
 
-def select_slot(driver):
+def select_slot(driver, start_time: str):
     driver.implicitly_wait(5)
-
     slot_container = driver.find_element(
         By.CSS_SELECTOR, "div.d-md-none.px-3.ng-star-inserted"
     )
-    try:
-        slot = slot_container.find_element(
-            By.CSS_SELECTOR,
-            "div.border-radius-4.border-dark-gray.w-100.text-center.size-12.clickable.time-slot.py-2.position-relative.overflow-visible",
-        )
-    except NoSuchElementException:
-        return False
-    slot.click()
-    driver.implicitly_wait(5)
-    next_button = driver.find_element(
-        By.CSS_SELECTOR, "button.btn.btn-info.text-uppercase.w-100.py-2.px-8"
+    slots = slot_container.find_elements(
+        By.CSS_SELECTOR,
+        "div.border-radius-4.border-dark-gray.w-100.text-center.size-12.clickable.time-slot.py-2.position-relative.overflow-visible",
     )
-    next_button.click()
-    return True
+
+    # reverse order to "am8:00" for ease of comparison
+    start_time = start_time[-2:] + start_time[:-2]
+    for slot in slots:
+        slot_time_text = slot.find_element(
+            By.CSS_SELECTOR,
+            "div.text-lowercase",
+        )
+        end_time = slot_time_text.text.partition("- ")[2]
+        end_time = end_time[-2:] + end_time[:-3]
+
+        if end_time >= start_time:
+            slot.click()
+            driver.implicitly_wait(5)
+            next_button = driver.find_element(
+                By.CSS_SELECTOR, "button.btn.btn-info.text-uppercase.w-100.py-2.px-8"
+            )
+            next_button.click()
+            return True
+    return False
 
 
 def confirm_booking(driver):
@@ -129,22 +138,22 @@ def confirm_booking(driver):
     confirm_booking_button.click()
 
 
-def bayclub_loop(driver):
+def bayclub_loop(driver, day, start_time, dry_run=False):
     # loop over slot selection
     status = False
     while not status:
         select_tennis(driver)
         select_time_length(driver)
-        select_day(driver)
+        select_day(driver, day)
         select_hour_view(driver)
-        status = select_slot(driver)
+        status = select_slot(driver, start_time)
         time.sleep(10)
         driver.refresh()
-    confirm_booking(driver)
-    return True
+    if not dry_run:
+        confirm_booking(driver)
 
 
-def main(username: str, password: str):
+def main(args):
     # Setup
     service = Service(executable_path="/Users/williamzhu/Projects/bayclub/chromedriver")
     options = webdriver.ChromeOptions()
@@ -155,12 +164,13 @@ def main(username: str, password: str):
     driver.get(url)
     driver.implicitly_wait(10)
 
-    login(driver, username, password)
+    login(driver, args.username, args.password)
     select_club(driver)
     select_racquet_sports(driver)
 
-    bayclub_loop(driver)
+    bayclub_loop(driver, args.day, args.start_time, args.dry_run)
 
+    time.sleep(10)
     # Clean up
     driver.quit()
 
@@ -173,6 +183,25 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p", type=str, dest="password", required=True, help="Bay Club password."
     )
+    parser.add_argument(
+        "--start_time",
+        type=str,
+        dest="start_time",
+        help="Earliest time for court to book.",
+    )
+    parser.add_argument(
+        "-d",
+        type=int,
+        dest="day",
+        help="Day to book.",
+    )
+    parser.add_argument(
+        "--dry_run",
+        type=bool,
+        default=False,
+        dest="dry_run",
+        required=False,
+        help="If True, don't book the court at the end.",
+    )
     args = parser.parse_args()
-
-    main(args.username, args.password)
+    main(args)
