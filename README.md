@@ -13,4 +13,9 @@ Args:
 -d: Day of the week to book. 0 is Sunday and so on.
 --start_time: The earliest ending time to book. "6:00pm" means book any slot ending at 6pm or later.
 
+TODO:
+fix popup survey
+fix day selection not working sometimes 
+
 # bayclub
+

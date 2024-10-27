@@ -48,6 +48,7 @@ def select_racquet_sports(driver):
 
 
 def select_tennis(driver):
+    time.sleep(5)
     driver.implicitly_wait(5)
     tennis = driver.find_element(
         By.CSS_SELECTOR,
@@ -58,6 +59,7 @@ def select_tennis(driver):
 
 
 def select_time_length(driver):
+    time.sleep(5)
     driver.implicitly_wait(5)
     button_group = driver.find_elements(By.CSS_SELECTOR, "div.btn-group.w-100")[1]
     ninety_minutes = button_group.find_elements(
@@ -84,17 +86,19 @@ def select_day(driver, day: int):
 
 
 def select_hour_view(driver):
+    time.sleep(5)
     driver.implicitly_wait(5)
     button_group = driver.find_element(By.CSS_SELECTOR, "div.btn-group.w-100")
     hour_view = button_group.find_elements(
         By.CSS_SELECTOR, "div.btn.btn-outline-dark-grey.size-10.py-2.ng-star-inserted"
     )[1]
+    time.sleep(5)
     driver.implicitly_wait(5)
     hour_view.click()
 
 
 def select_slot(driver, start_time: str):
-    driver.implicitly_wait(5)
+    time.sleep(20)
     slot_container = driver.find_element(
         By.CSS_SELECTOR, "div.d-md-none.px-3.ng-star-inserted"
     )
@@ -102,7 +106,7 @@ def select_slot(driver, start_time: str):
         By.CSS_SELECTOR,
         "div.border-radius-4.border-dark-gray.w-100.text-center.size-12.clickable.time-slot.py-2.position-relative.overflow-visible",
     )
-
+    print("slots available: " + str(len(slots)))
     # reverse order to "am8:00" for ease of comparison
     start_time = start_time[-2:] + start_time[:-2]
     for slot in slots:
@@ -110,10 +114,12 @@ def select_slot(driver, start_time: str):
             By.CSS_SELECTOR,
             "div.text-lowercase",
         )
+        print(slot_time_text.text)
         end_time = slot_time_text.text.partition("- ")[2]
         end_time = end_time[-2:] + end_time[:-3]
 
-        if end_time >= start_time:
+        if (end_time >= start_time):
+            print("slot found: " + slot_time_text.text)
             slot.click()
             driver.implicitly_wait(5)
             next_button = driver.find_element(
@@ -125,6 +131,7 @@ def select_slot(driver, start_time: str):
 
 
 def confirm_booking(driver):
+    time.sleep(5)
     driver.implicitly_wait(5)
     people_container = driver.find_element(
         By.CSS_SELECTOR, "app-racquet-sports-player-select.d-block.pb-9.pb-md-0"
@@ -136,43 +143,51 @@ def confirm_booking(driver):
         By.CSS_SELECTOR, "button.my-3.btn.btn-block.btn-info.text-uppercase.py-2.px-8"
     )
     confirm_booking_button.click()
+    print("booked court!")
 
 
 def bayclub_loop(driver, day, start_time, dry_run=False):
     # loop over slot selection
-    status = False
-    while not status:
+    loop = 0
+    is_slot_found = False
+    while not is_slot_found:
+        print(loop)
         select_tennis(driver)
         select_time_length(driver)
         select_day(driver, day)
         select_hour_view(driver)
-        status = select_slot(driver, start_time)
-        time.sleep(10)
-        driver.refresh()
+        is_slot_found = select_slot(driver, start_time)
+        if not is_slot_found:
+            driver.refresh()
+            loop+=1
     if not dry_run:
         confirm_booking(driver)
 
 
 def main(args):
     # Setup
-    service = Service(executable_path="/Users/williamzhu/Projects/bayclub/chromedriver")
-    options = webdriver.ChromeOptions()
-    options.add_argument("--window-size=100,800")
-    driver = webdriver.Chrome(service=service, options=options)
+    try:
+        service = Service(executable_path="/Users/williamzhu/Projects/bayclub/chromedriver")
+        options = webdriver.ChromeOptions()
+        options.add_argument("--window-size=100,800")
+        driver = webdriver.Chrome(service=service, options=options)
 
-    url = "https://bayclubconnect.com/"
-    driver.get(url)
-    driver.implicitly_wait(10)
+        url = "https://bayclubconnect.com/"
+        driver.get(url)
+        driver.implicitly_wait(10)
 
-    login(driver, args.username, args.password)
-    select_club(driver)
-    select_racquet_sports(driver)
+        login(driver, args.username, args.password)
+        select_club(driver)
+        select_racquet_sports(driver)
 
-    bayclub_loop(driver, args.day, args.start_time, args.dry_run)
+        bayclub_loop(driver, args.day, args.start_time, args.dry_run)
 
-    time.sleep(10)
-    # Clean up
-    driver.quit()
+        time.sleep(10)
+        # Clean up
+        driver.quit()
+    except NoSuchElementException:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
@@ -204,4 +219,9 @@ if __name__ == "__main__":
         help="If True, don't book the court at the end.",
     )
     args = parser.parse_args()
-    main(args)
+    
+    status = 1
+    while status != 0:
+        print("restart script")
+        status = main(args)
+        
